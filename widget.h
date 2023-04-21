@@ -25,8 +25,11 @@ private slots:
 
     void on_path_to_folder_le_textChanged(const QString &arg1);
 
+    void on_about_programm_btn_clicked();
+
 private:
     Ui::Widget *ui;
+    void Download(QUrl LinkToFile, QString PathToFile);
 };
 
 #endif // WIDGET_H

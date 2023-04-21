@@ -1,6 +1,10 @@
 #include "widget.h"
 #include "ui_widget.h"
 
+#include <QtNetwork/QNetworkAccessManager>
+#include <QtNetwork/QNetworkReply>
+#include <QMessageBox>
+
 Widget::Widget(QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::Widget)
@@ -12,7 +16,6 @@ Widget::~Widget()
 {
     delete ui;
 }
-
 
 
 void Widget::on_browse_files_btn_clicked()
@@ -47,5 +50,33 @@ void Widget::on_path_to_folder_le_textChanged(const QString &arg1)
     else {
         ui->information_label->setText("Введите путь до папки, либо выберите файлы вручную.");
     }
+}
+
+void Widget::Download(QUrl LinkToFile, QString PathToFile)
+{
+    if (PathToFile.isEmpty() or LinkToFile.isEmpty()) {
+        return;
+    }
+    QNetworkAccessManager manager;
+    QNetworkReply *reply = manager.get(QNetworkRequest(LinkToFile));
+    QEventLoop loop;
+    QObject::connect(reply, SIGNAL(finished()), &loop, SLOT(quit()));
+    loop.exec();
+    if (reply->error() == QNetworkReply::NoError) {
+        QFile file(PathToFile);
+        if (file.open(QIODevice::WriteOnly)) {
+            file.write(reply->readAll());
+            file.close();
+        }
+    }
+}
+
+
+void Widget::on_about_programm_btn_clicked()
+{
+    QMessageBox::about(this, "LoadStation - About us", "<h4>Developed by Sergey Lowly</h4>\n\n"
+                                                       "Copyright 2022-2023 Lowlydevelopment.are. "
+                                                       "For technical support, write to <a href=\"about.lowly@vk.com\">Email</a>\n"
+                                                       "<a href=\"http://www.such-and-such.com\">WebPage</a>");
 }
 
