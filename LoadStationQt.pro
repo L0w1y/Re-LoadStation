@@ -11,14 +11,14 @@ CONFIG += c++20
 SOURCES += \
     converter.cpp \
     extractor.cpp \
-#    loader.cpp \
+    loader.cpp \
     main.cpp \
     widget.cpp
 
 HEADERS += \
     converter.h \
     extractor.h \
-#    loader.h \
+    loader.h \
     widget.h
 
 FORMS += \
