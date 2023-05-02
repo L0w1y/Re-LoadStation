@@ -4,10 +4,9 @@
 #include <QJsonArray>
 #include <QVector3D>
 #include <QDir>
-#include "converter.h"
 
-void converter::convert(QString folder)
-{
+// Функция конвертации
+void Convert(QString folder) {
     // Открываем файл сцены
 
     QFile f(folder+"/scene.json");
@@ -40,7 +39,6 @@ void converter::convert(QString folder)
     omtl.close();
 
     QJsonArray meshes = json["meshes"].toArray();
-
     // Обрабатываем каждую сетку в сцене
     for (int i = 0; i < meshes.size(); ++i) {
         QJsonObject mesh = meshes[i].toObject();
@@ -149,4 +147,9 @@ void converter::convert(QString folder)
         output.close();
     }
     qDebug() << "COMPLETED!!!";
+}
+
+// Функция создания директории, если ее не существует
+void mkDIR(QString dir) {
+    QDir().mkpath(dir);
 }

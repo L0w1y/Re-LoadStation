@@ -3,16 +3,17 @@
 
 #include <QString>
 #include <QUrl>
+#include <QWidget>
 
 class loader
 {
 public:
     loader();
-    void Download(QUrl downloadUrl, QString downloadPath);
+//    void Download(QUrl downloadUrl, QString downloadPath);
+    QString fetchWork(QWidget *parent, QUrl UserLink);
+//    QUrl ExtractMviewLink(QString Target);
 
 private:
-    QString fetchWork(QUrl UserLink);
-    QUrl ExtractMviewLink(QString Target);
 };
 
 #endif // LOADER_H

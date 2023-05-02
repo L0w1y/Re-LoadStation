@@ -23,9 +23,13 @@ public:
 private slots:
     void on_browse_files_btn_clicked();
 
-    void on_path_to_folder_le_textChanged(const QString &arg1);
+    void on_path_to_folder_le_textChanged();
 
     void on_about_programm_btn_clicked();
+
+    void on_artstation_load_btn_clicked();
+
+    void on_call_worker_btn_clicked();
 
 private:
     Ui::Widget *ui;

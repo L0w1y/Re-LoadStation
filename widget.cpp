@@ -1,6 +1,8 @@
 #include "widget.h"
 #include "ui_widget.h"
 #include <QMessageBox>
+#include <iostream>
+#include <QDebug>
 
 Widget::Widget(QWidget *parent)
     : QWidget(parent)
@@ -21,10 +23,17 @@ void Widget::on_browse_files_btn_clicked()
     QString absolPath = QFileInfo(Files[0]).absoluteDir().path();
     if (QFileInfo::exists(absolPath) and QFileInfo(absolPath).isDir()) {
         ui->path_to_folder_le->setText(QFileInfo(Files[0]).absoluteDir().path());
-    }
+        if (ui->file_listwidget->count() > 0 ){
+            ui->call_worker_btn->setEnabled(true);
+        }
+        else {
+            ui->call_worker_btn->setEnabled(false);
+        }
+        }
+
 }
 
-void Widget::on_path_to_folder_le_textChanged(const QString &arg1)
+void Widget::on_path_to_folder_le_textChanged()
 {
     QFileInfo path(ui->path_to_folder_le->text());
     QDir dir;
@@ -54,5 +63,24 @@ void Widget::on_about_programm_btn_clicked()
                                                        "<p>Программа предоставляет доступ к некоторым 3д моделям ArtStation</p>\n"
                                                        "<p>Для технической поддержки, рекомендуем обратиться к <a href=\"https://vk.com/Lowly_on\">основателю проекта</a>.</p>\n\n"
                                                        "Все права защищены и пренадлежат их правообладателям.");
+}
+
+
+void Widget::on_artstation_load_btn_clicked()
+{
+    ui->file_listwidget->clear();
+    ui->path_to_folder_le->clear();
+//    loader loader;
+//    qDebug() << loader.fetchWork(this, QUrl("https://www.artstation.com/artwork/RY2KdE"));
+
+}
+
+
+void Widget::on_call_worker_btn_clicked()
+{
+    qDebug() << "Вы нажали кнопку!!!";
+    for (int i = 0; i < ui->file_listwidget->count(); i++) {
+        qDebug() << ui->file_listwidget->takeItem(i)->text();
+    }
 }
 

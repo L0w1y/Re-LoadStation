@@ -9,17 +9,26 @@ CONFIG += c++20
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
+    conv_temp.cpp \
     converter.cpp \
+    converter_new.cpp \
     extractor.cpp \
+    extractor_new.cpp \
     loader.cpp \
     main.cpp \
-    widget.cpp
+    widget.cpp \
+#    despencives/jsoncpp.cpp \
+ \#    despencives/json/json.h
+    worker.cpp
 
 HEADERS += \
     converter.h \
+    converter_new.h \
     extractor.h \
+    extractor_new.h \
     loader.h \
-    widget.h
+    widget.h \
+    worker.h
 
 FORMS += \
     widget.ui
