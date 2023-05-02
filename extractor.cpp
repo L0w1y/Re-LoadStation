@@ -1,161 +1,121 @@
-#include <iostream>
-#include <fstream>
-#include <filesystem>
-#include <string>
-#include <vector>
+#include <extractor.h>
 
-using namespace std;
+extractor::extractor() {}
 
-void mainfunc(const string& filename);
-vector<unsigned char> decompress(vector<unsigned char>& a, int b);
-string readcstr(ifstream& file);
-unsigned int readuint32(ifstream& file);
-void mkDIR(const string& dir);
+extractor::~extractor() {}
 
-void mainfunc(const string& filename)
-{
-    string folder = filename.substr(0, filename.find("."));
-    mkDIR(folder);
-    ifstream file(filename, ios::binary);
-    if (!file.is_open())
-    {
-        cout << "Failed to open file: " << filename << endl;
-        return;
-    }
-    file.seekg(0, ios::end);
-    streampos end = file.tellg();
-    file.seekg(0);
-    while (file.tellg() < end)
-    {
-        string name = readcstr(file);
-        [[maybe_unused]] string ftype = readcstr(file);
-        unsigned int c = readuint32(file);
-        unsigned int d = readuint32(file);
-        unsigned int e = readuint32(file);
-        vector<unsigned char> data(d);
-        file.read(reinterpret_cast<char*>(data.data()), d);
-        if (c & 1)
-        {
-            data = decompress(data, e);
-        }
-        ofstream output(folder + "/" + name, ios::binary);
-        if (!output.is_open())
-        {
-            cout << "Failed to open output file: " << folder << "/" << name << "\n";
-            continue;
-        }
-        output.write(reinterpret_cast<const char*>(data.data()), data.size());
-        output.close();
-    }
-}
+void extractor::decompress(QByteArray &data, QByteArray &output, quint32 size) {
+    quint32 i = 0;
+    QByteArray c(size, '\0');
+    QByteArray e(4096, '\0');
+    quint32 d = 0;
+    QList<quint32> f(4096, 0);
+    quint32 g = 256;
+    qint32 h = data.size();
+    qint32 k = 0;
+    quint32 l = 1;
+    quint32 m = 0;
+    quint32 n = 1;
+    c[d++] = data[0];
 
-// ReSharper disable once CppParameterMayBeConstPtrOrRef
-vector<unsigned char> decompress(vector<unsigned char>& a, int b)
-{
-    vector<unsigned char>c(b);
-    int d = 0;
-    unsigned int e[4096];
-    unsigned int f[4096];
-    int g = 256;
-    int h = a.size();
-    int k = 0;
-    int l = 1;
-    int m = 0;
-    int n = 1;
-    c[d] = a[0];
-    d++;
-    int r = 1;
-    while (true)
-    {
+    quint32 r = 1;
+    while (true) {
         n = r + (r >> 1);
-        if ((n+1)>=h)
-        {
+        if (n + 1 >= h)
             break;
-        }
-        m = a[n + 1];
-        n = a[n];
-        int p = (r & 1) ? (m << 4 | n >> 4) : ((m & 15) << 8 | n);
-        if (p < g)
-        {
-            if (256 > p)
-            {
+
+        m = data[n + 1];
+        n = data[n];
+        quint32 p = (m << 4 | n >> 4) | ((r & 1) << 8 | ((m & 15) << 8 | n));
+        if (p < g) {
+            if (256 > p) {
                 m = d;
                 n = 1;
-                c[d] = p;  // NOLINT(clang-diagnostic-implicit-int-conversion)
-                d++;
-            }
-            else
-            {
+                c[d++] = static_cast<char>(p);
+            } else {
                 m = d;
-                n = f[p];  // NOLINT(bugprone-narrowing-conversions)
-                p = e[p];  // NOLINT(bugprone-narrowing-conversions)
-                int q = p + n;
-                while (p < q)
-                {
-                    c[d] = c[p];
-                    d++;
-                    p++;
+                n = f[p];
+                p = e[p];
+                quint32 q = p + n;
+                while (p < q) {
+                    c[d++] = c[p++];
                 }
-
             }
-        }
-        else if (p == g)
-        {
+        } else if (p == g) {
             m = d;
             n = l + 1;
             p = k;
-            int q = k + l;
-            while (p < q)
-            {
-                c[d] = c[p];
-                d++;
-                p++;
+            quint32 q = k + l;
+            while (p < q) {
+                c[d++] = c[p++];
             }
-            c[d] = c[k];
-            d++;
-        }
-        else
-        {
+            c[d++] = c[k];
+        } else {
             break;
         }
+        if (4096 <= g) {
+            break;
+        }
+
         e[g] = k;
         f[g] = l + 1;
         g++;
         k = m;
         l = n;
-        g = (4096 <= g) ? 256 : g;
         r++;
     }
-    return (d == b) ? c : vector<unsigned char>();
+    output = c.left(size);
 }
 
-string readcstr(ifstream& file)
-{
-    string str;
-    char c;
-    while (file.get(c) && c != '\0')
-    {
-        str += c;
-    }
-    return str;
+quint32 extractor::readuint32(QFile &file) {
+    char buf[4];
+    file.read(buf, 4);
+    return *reinterpret_cast<quint32*>(buf);
 }
 
-unsigned int readuint32(ifstream& file)
-{
-    unsigned char buffer[4];
-    file.read(reinterpret_cast<char*>(buffer), 4);
-    unsigned int result = (static_cast<unsigned int>(buffer[0])) | (static_cast<unsigned int>(buffer[1]) << 8) | (
-                              static_cast<unsigned int>(buffer[2]) << 16) | (static_cast<unsigned int>(buffer[3]) << 24);
-    return result;
-}
-
-void mkDIR(const string& dir)
-{
-    if (!filesystem::exists(dir))
-    {
-        if (!filesystem::create_directory(dir))
-        {
-            cout << "Error: Cannot create directory: (" << dir << ").\n";
+QString extractor::readcstr(QFile &file) {
+    QByteArray buf;
+    while (true) {
+        char b[1];
+        file.read(b, 1);
+        if (*b == 0) {
+            break;
+        } else {
+            buf.append(b[0]);
         }
     }
+    return QString::fromUtf8(buf.constData(), buf.size());
+}
+
+void extractor::mkDIR(const QString &dir) {
+    QDir().mkpath(dir);
+}
+
+QString extractor::extract(QString filename) {
+    QString folder = filename.split('.').first();
+    extractor::mkDIR(folder);
+    QFile bin(filename);
+    if (!bin.open(QIODevice::ReadOnly)) {
+        return QString();
+    }
+    bin.seek(0);
+    qint64 end = bin.size();
+    while (bin.pos() < end) {
+        QString name = extractor::readcstr(bin);
+        QString type = extractor::readcstr(bin);
+        quint32 c = extractor::readuint32(bin);
+        quint32 d = extractor::readuint32(bin);
+        quint32 e = extractor::readuint32(bin);
+        QByteArray data = bin.read(d);
+        if (c & 1) {
+            extractor::decompress(data, data, e);
+        }
+        QFile output(QString("%1/%2").arg(folder, name));
+        if (output.open(QIODevice::WriteOnly)) {
+            output.write(data);
+            output.close();
+        }
+        qDebug() << name << type;
+    }
+    return folder;
 }

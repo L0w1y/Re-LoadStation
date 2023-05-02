@@ -1,152 +1,118 @@
-#include <QFile>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonArray>
-#include <QVector3D>
-#include <QDir>
-#include "converter.h"
+#include <converter.h>
 
-void converter::convert(QString folder)
-{
-    // Открываем файл сцены
+converter::converter(){}
 
-    QFile f(folder+"/scene.json");
-    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qDebug() << "Could not open file:" << f.errorString();
+converter::~converter(){}
+
+void converter::convert(QString folder) {
+    qDebug() << QString("Load folder %1").arg(folder);
+    QFile f(QString("%1/scene.json").arg(folder));
+    if (!f.open(QIODevice::ReadOnly)) {
         return;
     }
-    QByteArray data = f.readAll();
+    QJsonDocument data = QJsonDocument::fromJson(f.readAll());
+    qDebug() << "Created JsonDocument";
     f.close();
-    QJsonDocument jsonDoc = QJsonDocument::fromJson(data);
-    QJsonObject json = jsonDoc.object();
-
-    // Создаем файл материалов
-    QFile omtl(folder+"/master.mtl");
-    if (!omtl.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        qDebug() << "Could not open file:" << omtl.errorString();
+    QFile omtl(QString("%1/master.mtl").arg(folder));
+    if (!omtl.open(QIODevice::WriteOnly)) {
         return;
     }
-    QJsonArray materials = json["materials"].toArray();
-
-    // Для каждого материала в сцене записываем новый материал в .mtl файл
-    for (int i = 0; i < materials.size(); ++i) {
-        QJsonObject mat = materials[i].toObject();
+    qDebug() << "Extract materials";
+    QTextStream omtlStream(&omtl);
+    QJsonArray materials = data.object()["materials"].toArray();
+    for (auto matVal : materials) {
+        QJsonObject mat = matVal.toObject();
         QString name = mat["name"].toString();
         QString diffuse = mat["albedoTex"].toString();
-        omtl.write(QString("newmtl %1\n").arg(name).toUtf8());
-        omtl.write(QString("map_Ka %1\n").arg(diffuse).toUtf8());
-        omtl.write(QString("map_Kd %1\n").arg(diffuse).toUtf8());
+        omtlStream << QString("newmtl %1\n").arg(name);
+        omtlStream << QString("map_Ka %1\n").arg(diffuse);
+        omtlStream << QString("map_Kd %1\n").arg(diffuse);
+        qDebug() << QString("Extract %1 material").arg(mat["name"].toString());
     }
     omtl.close();
-
-    QJsonArray meshes = json["meshes"].toArray();
-
-    // Обрабатываем каждую сетку в сцене
-    for (int i = 0; i < meshes.size(); ++i) {
-        QJsonObject mesh = meshes[i].toObject();
+    QJsonArray meshes = data.object()["meshes"].toArray();
+    for (auto meshVal : meshes) {
+        QJsonObject mesh = meshVal.toObject();
         QString name = mesh["name"].toString();
         QString dat = mesh["file"].toString();
-        qDebug() << "converting" << dat;
-        int wire_count = mesh["wireCount"].toInt();
-        int index_count = mesh["indexCount"].toInt();
-        int vertex_count = mesh["vertexCount"].toInt();
-        int tex_coord_2 = 0;
-        if (mesh.contains("secondaryTexCoord")) {
-            tex_coord_2 = mesh["secondaryTexCoord"].toInt();
-        }
-        int vertex_color = 0;
-        if (mesh.contains("vertexColor")) {
-            vertex_color = mesh["vertexColor"].toInt();
-        }
-        int index_type_size = mesh["indexTypeSize"].toInt();
+        qDebug().noquote() << "converting" << dat;
+
+        int wireCount = mesh["wireCount"].toInt();
+        int indexCount = mesh["indexCount"].toInt();
+        int vertexCount = mesh["vertexCount"].toInt();
+        int texCoord2 = mesh.contains("secondaryTexCoord") ? mesh["secondaryTexCoord"].toInt() : 0;
+        int vertexColor = mesh.contains("vertexColor") ? mesh["vertexColor"].toInt() : 0;
+        int indexTypeSize = mesh["indexTypeSize"].toInt();
         int stride = 32;
-        if (vertex_color > 0) stride += 4;
-        if (tex_coord_2 > 0) stride += 8;
+        if (vertexColor > 0) stride += 4;
+        if (texCoord2 > 0) stride += 8;
 
-        // Читаем файл .dat и записываем данные в .obj
-        QFile df(QString("%1/%2").arg(folder).arg(dat));
+        QFile df(QString("%1/%2").arg(folder, dat));
         if (!df.open(QIODevice::ReadOnly)) {
-            qDebug() << "Could not open file:" << df.errorString();
-            return;
+            continue;
         }
-        QFile output(QString("%1/%2.obj").arg(folder).arg(dat));
-        if (!output.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            qDebug() << "Could not open file:" << output.errorString();
-            return;
-        }
-        output.write("mtllib master.mtl\n");
-        QVector<QVector3D> vert_list;
-        QVector<QVector2D> uv_list;
-        QList<QList<QVector3D>> face_list;
-        QList<QString> materials_list;
-        QJsonArray sub_meshes = mesh["subMeshes"].toArray();
-
-        // Для каждой под-сетки сетки
-        for (int j = 0; j < sub_meshes.size(); ++j) {
+        QTextStream outputStream(new QFile(QString("%1/%2.obj").arg(folder, dat)));
+        outputStream << "mtllib master.mtl\n";
+        QList<QList<QVector3D>> faceList;
+        QList<int> materialsList;
+        QJsonArray subMeshes = mesh["subMeshes"].toArray();
+        for (auto subMeshVal : subMeshes) {
+            QJsonObject subMesh = subMeshVal.toObject();
             QList<QVector3D> faces;
-            QJsonObject sub_mesh = sub_meshes[j].toObject();
-            QString material = sub_mesh["material"].toString();
-            int index_count_2 = sub_mesh["indexCount"].toInt();
-            int wire_count_2 = sub_mesh["wireIndexCount"].toInt();
-            int face_count = (index_count_2 * index_type_size) / 6;
-            if (index_type_size == 4) {
-                face_count = (index_count_2 * index_type_size) / 12;
-            }
+            int material = subMesh["material"].toInt();
+            int indexCount2 = subMesh["indexCount"].toInt();
+            int wireIndexCount = subMesh["wireIndexCount"].toInt();
+            int faceCount = (indexCount2 * indexTypeSize) / 6;
+            if (indexTypeSize == 4)
+                faceCount = (indexCount2 * indexTypeSize) / 12;
 
-            // Записываем каждую грань
-            for (int k = 0; k < face_count; ++k) {
-                QByteArray faceData = df.read(index_type_size * 3);
-                QVector3D face;
-                if (index_type_size == 2) {
-                    // Читаем грани из 2 байтов
-                    quint16 *faceIndices = reinterpret_cast<quint16 *>(faceData.data());
-                    face = QVector3D(faceIndices[0], faceIndices[1], faceIndices[2]);
+            char faceBuffer[12];
+            for (int i = 0; i < faceCount; ++i) {
+                if (indexTypeSize == 2) {
+                    df.read(faceBuffer, 6);
+                    QVector3D face(ushort(faceBuffer[0]) + 1, ushort(faceBuffer[2]) + 1, ushort(faceBuffer[4]) + 1);
+                    faces.append(face);
                 } else {
-                    // Из 4-х байтов
-                    quint32 *faceIndices = reinterpret_cast<quint32 *>(faceData.data());
-                    face = QVector3D(faceIndices[0], faceIndices[1], faceIndices[2]);
+                    df.read(faceBuffer, 12);
+                    QVector3D face(uint(faceBuffer[0]) + 1, uint(faceBuffer[4]) + 1, uint(faceBuffer[8]) + 1);
+                    faces.append(face);
                 }
-                faces.append(face);
             }
-            face_list.append(faces);
-            materials_list.append(material);
+            faceList.append(faces);
+            materialsList.append(material);
         }
-        df.seek(wire_count * index_type_size);
-
-        // Записываем каждую вершину и uv координаты
-        for (int j = 0; j < vertex_count; ++j) {
-            QVector3D pos;
-            df.read(reinterpret_cast<char*>(&pos), sizeof(pos));
-            QVector2D texpos;
-            df.read(reinterpret_cast<char*>(&texpos), sizeof(texpos));
-            df.seek(df.pos() + (stride - 20));
-            vert_list.append(pos);
-            uv_list.append(texpos);
-        }
-
-        // Записываем вершины в .obj файл
-        for (const QVector3D &vert : vert_list) {
-            output.write(QString("v %1 %2 %3\n").arg(vert.x()).arg(vert.y()).arg(vert.z()).toUtf8());
-        }
-
-        // Записываем uv координаты в .obj файл
-        for (const QVector2D &uv : uv_list) {
-            output.write(QString("vt %1 %2\n").arg(uv.x()).arg(uv.y()).toUtf8());
-        }
-
-        // Записываем грани, используя записанные вершины и uv координаты
-        for (int j = 0; j < face_list.size(); ++j) {
-            QList<QVector3D> faces = face_list[j];
-            QString material = materials_list[j];
-            output.write("\n");
-            output.write(QString("g %1\n").arg(name).toUtf8());
-            output.write(QString("usemtl %1\n").arg(material).toUtf8());
-            for (const QVector3D &face : faces) {
-                output.write(QString("f %1/%1/%1 %2/%2/%2 %3/%3/%3\n").arg(face.x() + 1).arg(face.y() + 1).arg(face.z() + 1).toUtf8());
-            }
+        df.seek(wireCount * indexTypeSize);
+        QList<QVector3D> vertList;
+        QList<QVector2D> uvList;
+        for (int i = 0; i < vertexCount; ++i) {
+            char vertexBuffer[32];
+            df.read(vertexBuffer, stride);
+            QVector3D pos(reinterpret_cast<float*>(vertexBuffer)[0], reinterpret_cast<float*>(vertexBuffer)[1], reinterpret_cast<float*>(vertexBuffer)[2]);
+            QVector2D texpos(reinterpret_cast<float*>(vertexBuffer)[3], reinterpret_cast<float*>(vertexBuffer)[4]);
+            vertList.append(pos);
+            uvList.append(texpos);
         }
         df.close();
-        output.close();
+        for (QVector3D vert : vertList) {
+            outputStream << QString("v %1 %2 %3\n").arg(vert.x()).arg(vert.y()).arg(vert.z());
+        }
+        for (QVector2D uv : uvList) {
+            outputStream << QString("vt %1 %2\n").arg(uv.x()).arg(uv.y());
+        }
+        int faceListIndex = 0;
+        for (QList<QVector3D> faces : faceList) {
+            outputStream << '\n';
+            outputStream << QString("g %1\n").arg(name);
+            outputStream << QString("usemtl %1\n").arg(materialsList[faceListIndex++]);
+            for (QVector3D face : faces) {
+                outputStream << QString("f %1/%1/%1 %2/%2/%2 %3/%3/%3\n").arg(static_cast<int>(face.x())).arg(static_cast<int>(face.y())).arg(static_cast<int>(face.z()));
+            }
+        }
+//        qDebug() << "converted" << dat;
     }
-    qDebug() << "COMPLETED!!!";
+//    qDebug() << "COMPLETED!!!";
+}
+
+void converter::mkDIR(const QString &dir) {
+    QDir().mkpath(dir);
 }
